@@ -1,34 +1,141 @@
 'use client';
 
-import { useState } from 'react';
-import { Shield, Eye, EyeOff, LayoutDashboard, Home, Users, Settings, LogOut, CheckCircle, Clock } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Shield, Eye, EyeOff, LayoutDashboard, Home, Users, LogOut, Clock, Plus, Pencil, Trash2, X, CheckCircle, Check, XCircle, Bell } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { KOS_DATA, formatRupiah } from '@/lib/data';
+import { supabase } from '@/lib/supabase';
+import { formatRupiah } from '@/lib/data';
 import Image from 'next/image';
+
+type Kos = {
+  id: string;
+  name: string;
+  type: string;
+  city: string;
+  address: string;
+  price: number;
+  rating: number;
+  reviews: number;
+  facilities: string[];
+  images: string[];
+  description: string;
+  owner_name: string;
+  owner_avatar: string;
+  is_active: boolean;
+  status: string;
+};
+
+type KosForm = Omit<Kos, 'id' | 'rating' | 'reviews' | 'is_active' | 'status'>;
+
+const emptyForm: KosForm = {
+  name: '', type: 'Campur', city: '', address: '', price: 0,
+  facilities: [], images: [''], description: '', owner_name: '', owner_avatar: '',
+};
+
+const FACILITIES_LIST = ['AC', 'WiFi', 'Kamar Mandi Dalam', 'Kamar Mandi Luar', 'Kasur', 'Lemari', 'Meja Belajar', 'Dapur Bersama', 'Parkir Motor', 'Parkir Mobil', 'Laundry', 'Water Heater', 'Smart TV', 'CCTV', 'Keamanan 24 Jam'];
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  const [kosList, setKosList] = useState<Kos[]>([]);
+  const [pendingList, setPendingList] = useState<Kos[]>([]);
+  const [activeMenu, setActiveMenu] = useState('dashboard');
+  const [showModal, setShowModal] = useState(false);
+  const [editingKos, setEditingKos] = useState<Kos | null>(null);
+  const [form, setForm] = useState<KosForm>(emptyForm);
+  const [saving, setSaving] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('');
+
   const router = useRouter();
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (username === 'ADMIN' && password === 'KOS2026') {
-      setIsAuthenticated(true);
-      setError('');
-    } else {
-      setError('Username atau password salah.');
-    }
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) setIsAuthenticated(true);
+      setCheckingSession(false);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) { fetchKos(); fetchPending(); }
+  }, [isAuthenticated]);
+
+  const fetchKos = async () => {
+    const { data } = await supabase.from('kos').select('*').eq('status', 'approved').order('created_at', { ascending: false });
+    if (data) setKosList(data);
   };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setUsername('');
-    setPassword('');
+  const fetchPending = async () => {
+    const { data } = await supabase.from('kos').select('*').eq('status', 'pending').order('created_at', { ascending: false });
+    if (data) setPendingList(data);
   };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError('');
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) { setError('Email atau password salah.'); } else { setIsAuthenticated(true); }
+    setIsLoading(false);
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setIsAuthenticated(false);
+  };
+
+  const handleApprove = async (kos: Kos) => {
+    await supabase.from('kos').update({ status: 'approved', is_active: true }).eq('id', kos.id);
+    showSuccess(`"${kos.name}" berhasil disetujui!`);
+    fetchKos(); fetchPending();
+  };
+
+  const handleReject = async (kos: Kos) => {
+    if (!confirm(`Tolak pengajuan "${kos.name}"?`)) return;
+    await supabase.from('kos').update({ status: 'rejected', is_active: false }).eq('id', kos.id);
+    showSuccess(`"${kos.name}" ditolak.`);
+    fetchPending();
+  };
+
+  const openAddModal = () => { setEditingKos(null); setForm(emptyForm); setShowModal(true); };
+  const openEditModal = (kos: Kos) => {
+    setEditingKos(kos);
+    setForm({ name: kos.name, type: kos.type, city: kos.city, address: kos.address, price: kos.price, facilities: kos.facilities, images: kos.images, description: kos.description, owner_name: kos.owner_name, owner_avatar: kos.owner_avatar });
+    setShowModal(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Yakin hapus kos ini?')) return;
+    await supabase.from('kos').delete().eq('id', id);
+    showSuccess('Kos berhasil dihapus!');
+    fetchKos();
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    const payload = { ...form, images: form.images.filter(img => img.trim() !== '') };
+    if (editingKos) {
+      await supabase.from('kos').update(payload).eq('id', editingKos.id);
+      showSuccess('Kos berhasil diperbarui!');
+    } else {
+      await supabase.from('kos').insert([{ ...payload, rating: 0, reviews: 0, is_active: true, status: 'approved' }]);
+      showSuccess('Kos berhasil ditambahkan!');
+    }
+    setSaving(false); setShowModal(false); fetchKos();
+  };
+
+  const showSuccess = (msg: string) => { setSuccessMsg(msg); setTimeout(() => setSuccessMsg(''), 3000); };
+  const toggleFacility = (fac: string) => {
+    setForm(prev => ({ ...prev, facilities: prev.facilities.includes(fac) ? prev.facilities.filter(f => f !== fac) : [...prev.facilities, fac] }));
+  };
+
+  if (checkingSession) return <div className="min-h-screen flex items-center justify-center"><p className="text-slate-500">Memuat...</p></div>;
 
   if (!isAuthenticated) {
     return (
@@ -44,61 +151,26 @@ export default function AdminPage() {
               <p className="text-slate-400 text-sm">Masuk untuk mengelola sistem JuraganKos</p>
             </div>
           </div>
-          
           <div className="p-8">
-            {error && (
-              <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm font-medium flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-red-500" />
-                {error}
-              </div>
-            )}
-            
+            {error && <div className="mb-6 p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm font-medium flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-red-500" />{error}</div>}
             <form onSubmit={handleLogin} className="space-y-5">
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Username</label>
-                <input 
-                  type="text" 
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all font-medium"
-                  placeholder="Masukkan username"
-                  required
-                />
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Email</label>
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all" placeholder="admin@juragankos.com" required />
               </div>
-              
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Password</label>
                 <div className="relative">
-                  <input 
-                    type={showPassword ? "text" : "password"} 
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all font-medium"
-                    placeholder="••••••••"
-                    required
-                  />
-                  <button 
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
-                  >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
+                  <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all" placeholder="••••••••" required />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">{showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}</button>
                 </div>
               </div>
-              
-              <button 
-                type="submit"
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg hover:shadow-orange-500/25 active:scale-[0.98] flex items-center justify-center gap-2 mt-4"
-              >
-                Masuk ke Dashboard
+              <button type="submit" disabled={isLoading} className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg mt-4">
+                {isLoading ? 'Memproses...' : 'Masuk ke Dashboard'}
               </button>
             </form>
-            
             <div className="mt-8 text-center text-xs text-slate-400">
-              <button onClick={() => router.push('/')} className="hover:text-slate-600 transition-colors">
-                &larr; Kembali ke Beranda
-              </button>
+              <button onClick={() => router.push('/')} className="hover:text-slate-600 transition-colors">← Kembali ke Beranda</button>
             </div>
           </div>
         </div>
@@ -109,66 +181,39 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-slate-50 flex">
       {/* Sidebar */}
-      <aside className="w-64 bg-slate-900 text-white flex-shrink-0 flex flex-col hidden md:flex">
-        <div className="h-16 flex items-center px-6 border-b border-slate-800 shrink-0">
-          <div className="flex items-center gap-2">
-            <Image 
-              src="https://i.imgur.com/fofZxal.png" 
-              alt="JuraganKos Logo" 
-              width={120} 
-              height={32} 
-              className="h-6 w-auto object-contain brightness-0 invert" 
-            />
-          </div>
+      <aside className="w-64 bg-slate-900 text-white flex-shrink-0 flex-col hidden md:flex">
+        <div className="h-16 flex items-center px-6 border-b border-slate-800">
+          <span className="text-white font-bold text-lg">JuraganKos Admin</span>
         </div>
-        
         <div className="px-4 py-6 flex-1">
           <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4 px-2">Menu Utama</p>
           <nav className="space-y-1">
-            <a href="#" className="flex items-center gap-3 px-3 py-2.5 bg-orange-500 text-white rounded-lg font-medium text-sm transition-colors">
-              <LayoutDashboard className="w-5 h-5" />
-              Dashboard
-            </a>
-            <a href="#" className="flex items-center gap-3 px-3 py-2.5 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg font-medium text-sm transition-colors">
-              <Home className="w-5 h-5" />
-              Kelola Kos
-            </a>
-            <a href="#" className="flex items-center gap-3 px-3 py-2.5 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg font-medium text-sm transition-colors">
-              <Users className="w-5 h-5" />
-              Penyewa
-            </a>
-            <a href="#" className="flex items-center gap-3 px-3 py-2.5 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg font-medium text-sm transition-colors">
-              <Settings className="w-5 h-5" />
-              Pengaturan
-            </a>
+            {[
+              { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+              { id: 'kelola', label: 'Kelola Kos', icon: Home },
+              { id: 'pengajuan', label: 'Pengajuan', icon: Bell, badge: pendingList.length },
+            ].map(({ id, label, icon: Icon, badge }) => (
+              <button key={id} onClick={() => setActiveMenu(id)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm transition-colors ${activeMenu === id ? 'bg-orange-500 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                <Icon className="w-5 h-5" />
+                <span className="flex-1 text-left">{label}</span>
+                {badge ? <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{badge}</span> : null}
+              </button>
+            ))}
           </nav>
         </div>
-        
         <div className="p-4 border-t border-slate-800">
-          <button 
-            onClick={handleLogout}
-            className="flex items-center gap-3 px-3 py-2.5 w-full text-slate-400 hover:bg-slate-800 hover:text-red-400 rounded-lg font-medium text-sm transition-colors"
-          >
-            <LogOut className="w-5 h-5" />
-            Keluar
+          <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2.5 w-full text-slate-400 hover:bg-slate-800 hover:text-red-400 rounded-lg font-medium text-sm transition-colors">
+            <LogOut className="w-5 h-5" /> Keluar
           </button>
         </div>
       </aside>
 
-      {/* Main Content */}
+      {/* Main */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Header */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 md:justify-end">
-          <div className="flex items-center gap-2 md:hidden">
-            <Image 
-              src="https://i.imgur.com/fofZxal.png" 
-              alt="JuraganKos Logo" 
-              width={100} 
-              height={24} 
-              className="h-5 w-auto object-contain" 
-            />
-          </div>
-          
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0">
+          <h2 className="font-bold text-slate-800">
+            {activeMenu === 'dashboard' ? 'Dashboard' : activeMenu === 'kelola' ? 'Kelola Kos' : 'Pengajuan Kos'}
+          </h2>
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
               <p className="text-sm font-bold text-slate-800">Super Admin</p>
@@ -180,96 +225,204 @@ export default function AdminPage() {
           </div>
         </header>
 
-        {/* Content */}
+        {successMsg && (
+          <div className="fixed top-6 right-6 z-50 bg-emerald-500 text-white px-6 py-3 rounded-xl shadow-lg flex items-center gap-2 font-semibold">
+            <CheckCircle className="w-5 h-5" /> {successMsg}
+          </div>
+        )}
+
         <div className="flex-1 overflow-auto p-4 sm:p-8">
           <div className="max-w-6xl mx-auto">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-8 gap-4">
-              <div>
-                <h1 className="text-2xl font-bold text-slate-900 mb-1">Dashboard Ikhtisar</h1>
-                <p className="text-sm text-slate-500">Selamat datang kembali! Ini ringkasan sistem hari ini.</p>
-              </div>
-              <button 
-                onClick={() => router.push('/')}
-                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors"
-              >
-                Kembali ke Situs
-              </button>
-            </div>
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              {[
-                { label: 'Total Kos Aktif', value: KOS_DATA.length.toString(), icon: Home, color: 'text-blue-600', bg: 'bg-blue-50' },
-                { label: 'Total Penyewa', value: '1,248', icon: Users, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-                { label: 'Pemesanan Baru', value: '24', icon: Clock, color: 'text-orange-500', bg: 'bg-orange-50' },
-                { label: 'Pendapatan Bulan Ini', value: 'Rp 45.2M', icon: LayoutDashboard, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-              ].map((stat, i) => (
-                <div key={i} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${stat.bg} ${stat.color}`}>
-                    <stat.icon className="w-6 h-6" />
-                  </div>
+            {/* DASHBOARD */}
+            {activeMenu === 'dashboard' && (
+              <>
+                <div className="flex justify-between items-end mb-8">
                   <div>
-                    <h3 className="text-2xl font-black text-slate-900">{stat.value}</h3>
-                    <p className="text-xs text-slate-500 font-medium">{stat.label}</p>
+                    <h1 className="text-2xl font-bold text-slate-900 mb-1">Dashboard Ikhtisar</h1>
+                    <p className="text-sm text-slate-500">Selamat datang kembali!</p>
+                  </div>
+                  <button onClick={() => router.push('/')} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold shadow-sm">Kembali ke Situs</button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+                  {[
+                    { label: 'Kos Aktif', value: kosList.length.toString(), icon: Home, color: 'text-blue-600', bg: 'bg-blue-50' },
+                    { label: 'Menunggu Persetujuan', value: pendingList.length.toString(), icon: Clock, color: 'text-orange-500', bg: 'bg-orange-50' },
+                    { label: 'Total Kos', value: (kosList.length + pendingList.length).toString(), icon: LayoutDashboard, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+                  ].map((stat, i) => (
+                    <div key={i} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${stat.bg} ${stat.color}`}><stat.icon className="w-6 h-6" /></div>
+                      <div><h3 className="text-2xl font-black text-slate-900">{stat.value}</h3><p className="text-xs text-slate-500 font-medium">{stat.label}</p></div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Pending preview */}
+                {pendingList.length > 0 && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-2xl p-5 mb-6 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Bell className="w-6 h-6 text-orange-500" />
+                      <div>
+                        <p className="font-bold text-orange-800">Ada {pendingList.length} pengajuan kos baru!</p>
+                        <p className="text-sm text-orange-600">Segera tinjau dan setujui atau tolak pengajuan.</p>
+                      </div>
+                    </div>
+                    <button onClick={() => setActiveMenu('pengajuan')} className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl font-bold text-sm transition-colors">Tinjau Sekarang</button>
+                  </div>
+                )}
+
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                    <h2 className="text-lg font-bold text-slate-900">Kos Aktif</h2>
+                    <button onClick={() => setActiveMenu('kelola')} className="text-orange-500 text-sm font-bold hover:text-orange-600">Kelola Semua</button>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead><tr className="bg-slate-50 text-[11px] uppercase tracking-widest text-slate-500 font-bold"><th className="p-4 px-6">Nama Kos</th><th className="p-4">Lokasi</th><th className="p-4">Tipe</th><th className="p-4">Harga/Bulan</th></tr></thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {kosList.slice(0, 5).map((kos) => (
+                          <tr key={kos.id} className="hover:bg-slate-50/50">
+                            <td className="p-4 px-6"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-slate-200">{kos.images?.[0] && <Image src={kos.images[0]} width={40} height={40} alt={kos.name} className="w-full h-full object-cover" />}</div><div><p className="font-bold text-sm text-slate-900">{kos.name}</p><p className="text-xs text-slate-500">{kos.owner_name}</p></div></div></td>
+                            <td className="p-4"><span className="text-sm text-slate-600">{kos.city}</span></td>
+                            <td className="p-4"><span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold uppercase">{kos.type}</span></td>
+                            <td className="p-4"><span className="text-sm font-bold text-slate-800">{formatRupiah(kos.price)}</span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
-              ))}
-            </div>
+              </>
+            )}
 
-            {/* Recent Kos Table */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                <h2 className="text-lg font-bold text-slate-900">Kos Terdaftar Baru</h2>
-                <button className="text-orange-500 text-sm font-bold hover:text-orange-600">Lihat Semua</button>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 text-[11px] uppercase tracking-widest text-slate-500 font-bold">
-                      <th className="p-4 px-6 font-semibold">Nama Kos</th>
-                      <th className="p-4 font-semibold">Lokasi</th>
-                      <th className="p-4 font-semibold">Tipe</th>
-                      <th className="p-4 font-semibold">Harga/Bulan</th>
-                      <th className="p-4 font-semibold">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {KOS_DATA.map((kos) => (
-                      <tr key={kos.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="p-4 px-6">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-slate-200">
-                              <Image src={kos.images[0]} width={40} height={40} alt={kos.name} className="w-full h-full object-cover" />
+            {/* KELOLA KOS */}
+            {activeMenu === 'kelola' && (
+              <>
+                <div className="flex justify-between items-center mb-8">
+                  <div><h1 className="text-2xl font-bold text-slate-900 mb-1">Kelola Kos</h1><p className="text-sm text-slate-500">Tambah, edit, atau hapus data kos</p></div>
+                  <button onClick={openAddModal} className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-5 py-2.5 rounded-xl font-bold shadow transition-colors"><Plus className="w-5 h-5" /> Tambah Kos</button>
+                </div>
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead><tr className="bg-slate-50 text-[11px] uppercase tracking-widest text-slate-500 font-bold"><th className="p-4 px-6">Nama Kos</th><th className="p-4">Lokasi</th><th className="p-4">Tipe</th><th className="p-4">Harga/Bulan</th><th className="p-4">Aksi</th></tr></thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {kosList.map((kos) => (
+                          <tr key={kos.id} className="hover:bg-slate-50/50">
+                            <td className="p-4 px-6"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-slate-200">{kos.images?.[0] && <Image src={kos.images[0]} width={40} height={40} alt={kos.name} className="w-full h-full object-cover" />}</div><p className="font-bold text-sm text-slate-900">{kos.name}</p></div></td>
+                            <td className="p-4"><span className="text-sm text-slate-600">{kos.city}</span></td>
+                            <td className="p-4"><span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold uppercase">{kos.type}</span></td>
+                            <td className="p-4"><span className="text-sm font-bold text-slate-800">{formatRupiah(kos.price)}</span></td>
+                            <td className="p-4"><div className="flex items-center gap-2"><button onClick={() => openEditModal(kos)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Pencil className="w-4 h-4" /></button><button onClick={() => handleDelete(kos.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button></div></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* PENGAJUAN */}
+            {activeMenu === 'pengajuan' && (
+              <>
+                <div className="mb-8">
+                  <h1 className="text-2xl font-bold text-slate-900 mb-1">Pengajuan Kos</h1>
+                  <p className="text-sm text-slate-500">Tinjau dan setujui atau tolak pengajuan kos baru</p>
+                </div>
+                {pendingList.length === 0 ? (
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-16 text-center">
+                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4"><CheckCircle className="w-8 h-8 text-slate-400" /></div>
+                    <p className="font-bold text-slate-700 mb-1">Tidak ada pengajuan baru</p>
+                    <p className="text-sm text-slate-400">Semua pengajuan sudah ditinjau</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {pendingList.map((kos) => (
+                      <div key={kos.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                        <div className="flex flex-col md:flex-row gap-6">
+                          <div className="w-full md:w-48 h-36 rounded-xl overflow-hidden bg-slate-200 shrink-0">
+                            {kos.images?.[0] && <Image src={kos.images[0]} width={192} height={144} alt={kos.name} className="w-full h-full object-cover" />}
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex flex-wrap items-start justify-between gap-4 mb-3">
+                              <div>
+                                <h3 className="font-bold text-lg text-slate-900">{kos.name}</h3>
+                                <p className="text-sm text-slate-500">{kos.city} · {kos.type}</p>
+                              </div>
+                              <span className="bg-orange-100 text-orange-700 text-xs font-bold px-3 py-1 rounded-full">Menunggu Review</span>
                             </div>
-                            <div>
-                              <p className="font-bold text-sm text-slate-900">{kos.name}</p>
-                              <p className="text-xs text-slate-500">{kos.owner.name}</p>
+                            <div className="grid grid-cols-2 gap-2 text-sm mb-4">
+                              <div><span className="text-slate-500">Pemilik:</span> <span className="font-semibold text-slate-800">{kos.owner_name}</span></div>
+                              <div><span className="text-slate-500">Harga:</span> <span className="font-semibold text-orange-500">{formatRupiah(kos.price)}/bln</span></div>
+                              <div className="col-span-2"><span className="text-slate-500">Alamat:</span> <span className="font-semibold text-slate-800">{kos.address}</span></div>
+                            </div>
+                            {kos.facilities?.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mb-4">
+                                {kos.facilities.slice(0, 5).map((f, i) => <span key={i} className="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded">{f}</span>)}
+                                {kos.facilities.length > 5 && <span className="bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded">+{kos.facilities.length - 5}</span>}
+                              </div>
+                            )}
+                            <div className="flex gap-3">
+                              <button onClick={() => handleApprove(kos)} className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2 rounded-xl font-bold text-sm transition-colors">
+                                <Check className="w-4 h-4" /> Setujui
+                              </button>
+                              <button onClick={() => handleReject(kos)} className="flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 px-5 py-2 rounded-xl font-bold text-sm transition-colors border border-red-200">
+                                <XCircle className="w-4 h-4" /> Tolak
+                              </button>
                             </div>
                           </div>
-                        </td>
-                        <td className="p-4 align-middle">
-                          <span className="text-sm text-slate-600">{kos.city}</span>
-                        </td>
-                        <td className="p-4 align-middle">
-                          <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold uppercase">{kos.type}</span>
-                        </td>
-                        <td className="p-4 align-middle">
-                          <span className="text-sm font-bold text-slate-800">{formatRupiah(kos.price)}</span>
-                        </td>
-                        <td className="p-4 align-middle">
-                          <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full text-[11px] font-bold">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Aktif
-                          </span>
-                        </td>
-                      </tr>
+                        </div>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       </main>
+
+      {/* Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-6 border-b border-slate-100 sticky top-0 bg-white z-10">
+              <h2 className="text-lg font-bold text-slate-900">{editingKos ? 'Edit Kos' : 'Tambah Kos Baru'}</h2>
+              <button onClick={() => setShowModal(false)} className="p-2 hover:bg-slate-100 rounded-lg"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleSave} className="p-6 space-y-5">
+              <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Nama Kos</label><input required value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500" placeholder="Nama kos..." /></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Tipe</label><select value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))} className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-orange-500">{['Putra', 'Putri', 'Campur'].map(t => <option key={t}>{t}</option>)}</select></div>
+                <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Kota</label><input required value={form.city} onChange={e => setForm(p => ({ ...p, city: e.target.value }))} className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500" placeholder="Kota..." /></div>
+              </div>
+              <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Alamat Lengkap</label><textarea required value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} rows={2} className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 resize-none" placeholder="Alamat..." /></div>
+              <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Harga per Bulan (Rp)</label><input required type="number" value={form.price} onChange={e => setForm(p => ({ ...p, price: Number(e.target.value) }))} className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500" placeholder="1500000" /></div>
+              <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Deskripsi</label><textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} rows={3} className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 resize-none" placeholder="Deskripsi kos..." /></div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Fasilitas</label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {FACILITIES_LIST.map(fac => (
+                    <label key={fac} className={`flex items-center gap-2 p-2.5 border rounded-xl cursor-pointer text-sm transition-colors ${form.facilities.includes(fac) ? 'bg-orange-50 border-orange-400 text-orange-700 font-semibold' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                      <input type="checkbox" className="sr-only" checked={form.facilities.includes(fac)} onChange={() => toggleFacility(fac)} />{fac}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">URL Foto (pisahkan per baris)</label><textarea value={form.images.join('\n')} onChange={e => setForm(p => ({ ...p, images: e.target.value.split('\n') }))} rows={3} className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 resize-none font-mono text-sm" placeholder={"https://contoh.com/foto1.jpg\nhttps://contoh.com/foto2.jpg"} /></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Nama Pemilik</label><input value={form.owner_name} onChange={e => setForm(p => ({ ...p, owner_name: e.target.value }))} className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500" placeholder="Nama pemilik..." /></div>
+                <div><label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">URL Avatar Pemilik</label><input value={form.owner_avatar} onChange={e => setForm(p => ({ ...p, owner_avatar: e.target.value }))} className="w-full border border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500" placeholder="https://..." /></div>
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                <button type="button" onClick={() => setShowModal(false)} className="px-5 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl font-semibold transition-colors">Batal</button>
+                <button type="submit" disabled={saving} className="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-bold rounded-xl shadow transition-colors">{saving ? 'Menyimpan...' : editingKos ? 'Simpan Perubahan' : 'Tambah Kos'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -2,11 +2,10 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { KOS_DATA, formatRupiah, Kost } from '@/lib/data';
+import { formatRupiah, getKosFromDB } from '@/lib/data';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Search, MapPin, Filter, SlidersHorizontal, ChevronDown } from 'lucide-react';
-import { motion } from 'motion/react';
 
 function SearchContent() {
   const searchParams = useSearchParams();
@@ -15,11 +14,23 @@ function SearchContent() {
   const [searchTerm, setSearchTerm] = useState(query);
   const [filterType, setFilterType] = useState('Semua');
   const [filterPrice, setFilterPrice] = useState('Semua');
-  const [results, setResults] = useState<Kost[]>(KOS_DATA);
+  const [allKos, setAllKos] = useState<any[]>([]);
+  const [results, setResults] = useState<any[]>([]);
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
+  // Fetch data dari Supabase saat pertama load
   useEffect(() => {
-    let filtered = KOS_DATA;
+    getKosFromDB().then((data) => {
+      setAllKos(data);
+      setResults(data);
+      setIsLoading(false);
+    });
+  }, []);
+
+  // Filter data setiap kali filter berubah
+  useEffect(() => {
+    let filtered = allKos;
 
     if (searchTerm) {
       const lowerQuery = searchTerm.toLowerCase();
@@ -44,7 +55,15 @@ function SearchContent() {
     }
 
     setResults(filtered);
-  }, [searchTerm, filterType, filterPrice]);
+  }, [searchTerm, filterType, filterPrice, allKos]);
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-[50vh]">
+        <p className="text-blue-500 font-bold">Memuat data...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -181,7 +200,7 @@ function SearchContent() {
                     </p>
                     
                     <div className="flex flex-wrap gap-2 mb-4 mt-auto">
-                      {kos.facilities.slice(0, 3).map((facility, index) => (
+                      {kos.facilities.slice(0, 3).map((facility: string, index: number) => (
                         <span key={index} className="bg-gray-100 text-gray-600 text-xs px-2.5 py-1 rounded-md">
                           {facility}
                         </span>

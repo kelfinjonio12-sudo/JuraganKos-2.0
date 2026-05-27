@@ -148,3 +148,37 @@ export function formatRupiah(amount: number): string {
     maximumFractionDigits: 0
   }).format(amount);
 }
+
+import { supabase } from './supabase'
+
+// Fetch semua kos dari Supabase
+export async function getKosFromDB() {
+  const { data, error } = await supabase
+    .from('kos')
+    .select('*')
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('Error fetching kos:', error)
+    return []
+  }
+
+  return data
+}
+
+// Fetch satu kos by ID
+export async function getKosByIdFromDB(id: string) {
+  const { data, error } = await supabase
+    .from('kos')
+    .select('*')
+    .eq('id', id)
+    .single()
+
+  if (error) {
+    console.error('Error fetching kos:', error)
+    return null
+  }
+
+  return data
+}
