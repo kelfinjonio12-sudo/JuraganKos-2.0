@@ -52,7 +52,6 @@ export default function AdminPage() {
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; onConfirm: () => void; type: 'danger' | 'warning' } | null>(null);
-  const [confirmModal, setConfirmModal] = useState<{ show: boolean; title: string; message: string; onConfirm: () => void; type: 'danger' | 'warning' } | null>(null);
 
   const router = useRouter();
 
