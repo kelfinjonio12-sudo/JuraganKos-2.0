@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { formatRupiah } from '@/lib/data';
 import Image from 'next/image';
+import { motion, AnimatePresence } from 'motion/react';
 
 type Kos = {
   id: string;
@@ -440,33 +441,46 @@ export default function AdminPage() {
       )}
 
       {/* Confirm Modal */}
-      {confirmModal && (
-        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-            <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 ${confirmModal.type === 'danger' ? 'bg-red-100' : 'bg-orange-100'}`}>
-              {confirmModal.type === 'danger'
-                ? <Trash2 className="w-7 h-7 text-red-500" />
-                : <XCircle className="w-7 h-7 text-orange-500" />}
-            </div>
-            <h3 className="text-lg font-bold text-slate-900 text-center mb-2">{confirmModal.title}</h3>
-            <p className="text-sm text-slate-500 text-center mb-6 leading-relaxed">{confirmModal.message}</p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setConfirmModal(null)}
-                className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors"
-              >
-                Batal
-              </button>
-              <button
-                onClick={confirmModal.onConfirm}
-                className={`flex-1 px-4 py-2.5 text-white font-bold rounded-xl transition-colors ${confirmModal.type === 'danger' ? 'bg-red-500 hover:bg-red-600' : 'bg-orange-500 hover:bg-orange-600'}`}
-              >
-                {confirmModal.type === 'danger' ? 'Ya, Hapus' : 'Ya, Tolak'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {confirmModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              transition={{ type: 'spring', duration: 0.3 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6"
+            >
+              <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 ${confirmModal.type === 'danger' ? 'bg-red-100' : 'bg-orange-100'}`}>
+                {confirmModal.type === 'danger'
+                  ? <Trash2 className="w-7 h-7 text-red-500" />
+                  : <XCircle className="w-7 h-7 text-orange-500" />}
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 text-center mb-2">{confirmModal.title}</h3>
+              <p className="text-sm text-slate-500 text-center mb-6 leading-relaxed">{confirmModal.message}</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setConfirmModal(null)}
+                  className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={confirmModal.onConfirm}
+                  className={`flex-1 px-4 py-2.5 text-white font-bold rounded-xl transition-colors ${confirmModal.type === 'danger' ? 'bg-red-500 hover:bg-red-600' : 'bg-orange-500 hover:bg-orange-600'}`}
+                >
+                  {confirmModal.type === 'danger' ? 'Ya, Hapus' : 'Ya, Tolak'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
