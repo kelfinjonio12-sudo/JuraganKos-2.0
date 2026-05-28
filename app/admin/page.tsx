@@ -51,6 +51,8 @@ export default function AdminPage() {
   const [form, setForm] = useState<KosForm>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; onConfirm: () => void; type: 'danger' | 'warning' } | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{ show: boolean; title: string; message: string; onConfirm: () => void; type: 'danger' | 'warning' } | null>(null);
 
   const router = useRouter();
 
@@ -95,11 +97,18 @@ export default function AdminPage() {
     fetchKos(); fetchPending();
   };
 
-  const handleReject = async (kos: Kos) => {
-    if (!confirm(`Tolak pengajuan "${kos.name}"?`)) return;
-    await supabase.from('kos').update({ status: 'rejected', is_active: false }).eq('id', kos.id);
-    showSuccess(`"${kos.name}" ditolak.`);
-    fetchPending();
+  const handleReject = (kos: Kos) => {
+    setConfirmModal({
+      title: 'Tolak Pengajuan',
+      message: `Yakin ingin menolak pengajuan "${kos.name}"? Tindakan ini tidak bisa dibatalkan.`,
+      type: 'warning',
+      onConfirm: async () => {
+        await supabase.from('kos').update({ status: 'rejected', is_active: false }).eq('id', kos.id);
+        showSuccess(`"${kos.name}" ditolak.`);
+        fetchPending();
+        setConfirmModal(null);
+      },
+    });
   };
 
   const openAddModal = () => { setEditingKos(null); setForm(emptyForm); setShowModal(true); };
@@ -109,11 +118,18 @@ export default function AdminPage() {
     setShowModal(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Yakin hapus kos ini?')) return;
-    await supabase.from('kos').delete().eq('id', id);
-    showSuccess('Kos berhasil dihapus!');
-    fetchKos();
+  const handleDelete = (id: string, name: string) => {
+    setConfirmModal({
+      title: 'Hapus Kos',
+      message: `Yakin ingin menghapus "${name}"? Data yang dihapus tidak bisa dikembalikan.`,
+      type: 'danger',
+      onConfirm: async () => {
+        await supabase.from('kos').delete().eq('id', id);
+        showSuccess('Kos berhasil dihapus!');
+        fetchKos();
+        setConfirmModal(null);
+      },
+    });
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -313,7 +329,7 @@ export default function AdminPage() {
                             <td className="p-4"><span className="text-sm text-slate-600">{kos.city}</span></td>
                             <td className="p-4"><span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-bold uppercase">{kos.type}</span></td>
                             <td className="p-4"><span className="text-sm font-bold text-slate-800">{formatRupiah(kos.price)}</span></td>
-                            <td className="p-4"><div className="flex items-center gap-2"><button onClick={() => openEditModal(kos)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Pencil className="w-4 h-4" /></button><button onClick={() => handleDelete(kos.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button></div></td>
+                            <td className="p-4"><div className="flex items-center gap-2"><button onClick={() => openEditModal(kos)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Pencil className="w-4 h-4" /></button><button onClick={() => handleDelete(kos.id, kos.name)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button></div></td>
                           </tr>
                         ))}
                       </tbody>
@@ -420,6 +436,35 @@ export default function AdminPage() {
                 <button type="submit" disabled={saving} className="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-bold rounded-xl shadow transition-colors">{saving ? 'Menyimpan...' : editingKos ? 'Simpan Perubahan' : 'Tambah Kos'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Modal */}
+      {confirmModal && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 ${confirmModal.type === 'danger' ? 'bg-red-100' : 'bg-orange-100'}`}>
+              {confirmModal.type === 'danger'
+                ? <Trash2 className="w-7 h-7 text-red-500" />
+                : <XCircle className="w-7 h-7 text-orange-500" />}
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 text-center mb-2">{confirmModal.title}</h3>
+            <p className="text-sm text-slate-500 text-center mb-6 leading-relaxed">{confirmModal.message}</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmModal(null)}
+                className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                onClick={confirmModal.onConfirm}
+                className={`flex-1 px-4 py-2.5 text-white font-bold rounded-xl transition-colors ${confirmModal.type === 'danger' ? 'bg-red-500 hover:bg-red-600' : 'bg-orange-500 hover:bg-orange-600'}`}
+              >
+                {confirmModal.type === 'danger' ? 'Ya, Hapus' : 'Ya, Tolak'}
+              </button>
+            </div>
           </div>
         </div>
       )}
