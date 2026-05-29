@@ -40,6 +40,10 @@ export default function KostDetail() {
   const [kos, setKos] = useState<Kos | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState(0);
+  const [user, setUser] = useState<any>(null);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [favoriteId, setFavoriteId] = useState<string | null>(null);
+  const [togglingFav, setTogglingFav] = useState(false);
   const [isBookingMode, setIsBookingMode] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
 
@@ -62,7 +66,35 @@ export default function KostDetail() {
   useEffect(() => {
     fetchKos();
     fetchUlasan();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+      if (user) checkFavorite(user.id);
+    });
   }, [id]);
+
+  const checkFavorite = async (userId: string) => {
+    const { data } = await supabase
+      .from('favorites')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('kos_id', id)
+      .single();
+    if (data) { setIsFavorite(true); setFavoriteId(data.id); }
+  };
+
+  const toggleFavorite = async () => {
+    if (!user) { router.push('/login'); return; }
+    setTogglingFav(true);
+    if (isFavorite && favoriteId) {
+      await supabase.from('favorites').delete().eq('id', favoriteId);
+      setIsFavorite(false);
+      setFavoriteId(null);
+    } else {
+      const { data } = await supabase.from('favorites').insert([{ user_id: user.id, kos_id: id }]).select('id').single();
+      if (data) { setIsFavorite(true); setFavoriteId(data.id); }
+    }
+    setTogglingFav(false);
+  };
 
   const fetchKos = async () => {
     const { data } = await supabase.from('kos').select('*').eq('id', id).single();
@@ -156,7 +188,14 @@ export default function KostDetail() {
             </div>
             <div className="absolute top-4 right-4 z-10 flex gap-2">
               <button className="bg-white/90 backdrop-blur w-10 h-10 flex items-center justify-center rounded-full hover:bg-orange-50 hover:text-orange-500 transition shadow text-gray-600"><Share2 className="w-5 h-5" /></button>
-              <button className="bg-white/90 backdrop-blur w-10 h-10 flex items-center justify-center rounded-full hover:bg-red-50 hover:text-red-500 transition shadow text-gray-600"><Heart className="w-5 h-5" /></button>
+              <button
+                onClick={toggleFavorite}
+                disabled={togglingFav}
+                className={`w-10 h-10 flex items-center justify-center rounded-full transition shadow ${isFavorite ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-white/90 backdrop-blur text-gray-600 hover:bg-red-50 hover:text-red-500'}`}
+                title={isFavorite ? 'Hapus dari favorit' : 'Simpan ke favorit'}
+              >
+                <Heart className={`w-5 h-5 ${isFavorite ? 'fill-current' : ''}`} />
+              </button>
             </div>
           </div>
 
@@ -431,4 +470,4 @@ export default function KostDetail() {
       </div>
     </div>
   );
-} 
+}
