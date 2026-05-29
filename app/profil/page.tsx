@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { formatRupiah } from '@/lib/data';
 import Image from 'next/image';
 import Link from 'next/link';
-import { User, Phone, Mail, Heart, Clock, LogOut, Save, MapPin, Star } from 'lucide-react';
+import { User, Phone, Mail, Heart, LogOut, Save, MapPin, Star, Camera, Loader2 } from 'lucide-react';
 
 type Profile = { id: string; full_name: string; avatar_url: string; phone: string; };
 type FavoriteKos = { id: string; kos: { id: string; name: string; city: string; price: number; images: string[]; type: string; rating: number; }; };
@@ -19,10 +19,12 @@ export default function ProfilPage() {
   const [activeTab, setActiveTab] = useState('profil');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
-
+  const [avatarUrl, setAvatarUrl] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -40,6 +42,7 @@ export default function ProfilPage() {
       setProfile(data);
       setFullName(data.full_name || '');
       setPhone(data.phone || '');
+      setAvatarUrl(data.avatar_url || '');
     }
   };
 
@@ -51,12 +54,34 @@ export default function ProfilPage() {
     if (data) setFavorites(data as any);
   };
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      alert('Format harus JPG, PNG, atau WebP');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Ukuran file maksimal 5MB');
+      return;
+    }
+    setUploadingAvatar(true);
+    const ext = file.name.split('.').pop();
+    const fileName = `${user.id}/avatar.${ext}`;
+    const { data, error } = await supabase.storage.from('avatars').upload(fileName, file, { upsert: true });
+    if (error) { alert('Gagal upload: ' + error.message); setUploadingAvatar(false); return; }
+    const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(data.path);
+    await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', user.id);
+    setAvatarUrl(publicUrl);
+    setUploadingAvatar(false);
+    showSuccess('Foto profil berhasil diperbarui!');
+  };
+
   const handleSaveProfil = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     await supabase.from('profiles').update({ full_name: fullName, phone }).eq('id', user.id);
-    setSuccessMsg('Profil berhasil disimpan!');
-    setTimeout(() => setSuccessMsg(''), 3000);
+    showSuccess('Profil berhasil disimpan!');
     setSaving(false);
   };
 
@@ -70,6 +95,14 @@ export default function ProfilPage() {
     router.push('/');
     router.refresh();
   };
+
+  const showSuccess = (msg: string) => {
+    setSuccessMsg(msg);
+    setTimeout(() => setSuccessMsg(''), 3000);
+  };
+
+  const displayAvatar = avatarUrl || user?.user_metadata?.avatar_url;
+  const displayName = fullName || user?.email || 'U';
 
   if (loading) return <div className="min-h-[70vh] flex items-center justify-center"><p className="text-blue-500 font-bold">Memuat...</p></div>;
 
@@ -86,16 +119,26 @@ export default function ProfilPage() {
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-6 flex flex-col sm:flex-row items-center gap-6">
         <div className="relative">
           <div className="w-20 h-20 rounded-full overflow-hidden bg-gradient-to-br from-blue-400 to-orange-400 flex items-center justify-center shrink-0">
-            {profile?.avatar_url || user?.user_metadata?.avatar_url ? (
-              <Image src={profile?.avatar_url || user?.user_metadata?.avatar_url} alt="Avatar" width={80} height={80} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            {displayAvatar ? (
+              <Image src={displayAvatar} alt="Avatar" width={80} height={80} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             ) : (
-              <span className="text-white text-2xl font-bold">{(fullName || user?.email || 'U').charAt(0).toUpperCase()}</span>
+              <span className="text-white text-2xl font-bold">{displayName.charAt(0).toUpperCase()}</span>
             )}
           </div>
+          {/* Tombol ganti foto */}
+          <button
+            onClick={() => avatarInputRef.current?.click()}
+            disabled={uploadingAvatar}
+            className="absolute -bottom-1 -right-1 w-7 h-7 bg-blue-600 hover:bg-blue-700 text-white rounded-full flex items-center justify-center shadow-lg transition-colors"
+          >
+            {uploadingAvatar ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
+          </button>
+          <input ref={avatarInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleAvatarUpload} />
         </div>
         <div className="flex-1 text-center sm:text-left">
-          <h1 className="text-xl font-bold text-gray-900">{fullName || user?.email}</h1>
+          <h1 className="text-xl font-bold text-gray-900">{displayName}</h1>
           <p className="text-gray-500 text-sm">{user?.email}</p>
+          <p className="text-xs text-gray-400 mt-1">Klik ikon kamera untuk ganti foto profil</p>
           <div className="flex items-center gap-4 mt-2 justify-center sm:justify-start text-sm text-gray-500">
             <span className="flex items-center gap-1"><Heart className="w-4 h-4 text-red-400" /> {favorites.length} Favorit</span>
           </div>

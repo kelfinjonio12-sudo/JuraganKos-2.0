@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, Upload, Home, Info, DollarSign } from 'lucide-react';
+import ImageUpload from '@/components/ImageUpload';
 import { supabase } from '@/lib/supabase';
 
 const FACILITIES_KAMAR = ['Kasur', 'Lemari Pakaian', 'Meja Belajar', 'Kursi', 'AC', 'Kipas Angin', 'Kamar Mandi Dalam', 'Water Heater', 'Smart TV'];
@@ -26,7 +27,7 @@ export default function ListProperty() {
   const [description, setDescription] = useState('');
   const [facilitiesKamar, setFacilitiesKamar] = useState<string[]>([]);
   const [facilitiesUmum, setFacilitiesUmum] = useState<string[]>([]);
-  const [imageUrls, setImageUrls] = useState('');
+  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [ownerName, setOwnerName] = useState('');
   const [ownerPhone, setOwnerPhone] = useState('');
   const [ownerEmail, setOwnerEmail] = useState('');
@@ -46,7 +47,7 @@ export default function ListProperty() {
     setError('');
 
     const allFacilities = [...facilitiesKamar, ...facilitiesUmum];
-    const images = imageUrls.split('\n').map(u => u.trim()).filter(u => u !== '');
+    const images = uploadedImages;
 
     const { error: supabaseError } = await supabase.from('kos').insert([{
       name,
@@ -233,15 +234,13 @@ export default function ListProperty() {
                   <h2 className="text-xl font-bold">Foto & Data Diri</h2>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">URL Foto Properti (satu per baris, maks. 5)</label>
-                  <textarea
-                    rows={4}
-                    value={imageUrls}
-                    onChange={e => setImageUrls(e.target.value)}
-                    className="w-full border border-gray-300 rounded-xl px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 resize-none font-mono text-sm"
-                    placeholder={"https://contoh.com/foto1.jpg\nhttps://contoh.com/foto2.jpg"}
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Foto Properti (maks. 5 foto)</label>
+                  <ImageUpload
+                    bucket="kos-images"
+                    folder="listings"
+                    maxFiles={5}
+                    onUploadComplete={(urls) => setUploadedImages(urls)}
                   />
-                  <p className="text-xs text-gray-400 mt-1">Kosongkan jika belum punya, kami akan pakai foto placeholder sementara.</p>
                 </div>
                 <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100">
                   <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Home className="w-4 h-4" /> Data Pemilik</h3>
