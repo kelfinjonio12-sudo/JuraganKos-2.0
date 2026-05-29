@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Shield, Eye, EyeOff, LayoutDashboard, Home, Users, LogOut, Clock, Plus, Pencil, Trash2, X, CheckCircle, Check, XCircle, Bell } from 'lucide-react';
+import { Shield, Eye, EyeOff, LayoutDashboard, Home, Users, LogOut, Clock, Plus, Pencil, Trash2, X, CheckCircle, Check, XCircle, Bell, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { formatRupiah } from '@/lib/data';
@@ -47,6 +47,9 @@ export default function AdminPage() {
 
   const [kosList, setKosList] = useState<Kos[]>([]);
   const [pendingList, setPendingList] = useState<Kos[]>([]);
+  const [kosPage, setKosPage] = useState(1);
+  const [pendingPage, setPendingPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [showModal, setShowModal] = useState(false);
   const [editingKos, setEditingKos] = useState<Kos | null>(null);
@@ -373,7 +376,7 @@ export default function AdminPage() {
                     <table className="w-full text-left">
                       <thead><tr className="bg-slate-50 text-[11px] uppercase tracking-widest text-slate-500 font-bold"><th className="p-4 px-6">Nama Kos</th><th className="p-4">Lokasi</th><th className="p-4">Tipe</th><th className="p-4">Harga/Bulan</th><th className="p-4">Aksi</th></tr></thead>
                       <tbody className="divide-y divide-slate-100">
-                        {kosList.map((kos) => (
+                        {kosList.slice((kosPage - 1) * ITEMS_PER_PAGE, kosPage * ITEMS_PER_PAGE).map((kos) => (
                           <tr key={kos.id} className="hover:bg-slate-50/50">
                             <td className="p-4 px-6"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-slate-200">{kos.images?.[0] && <Image src={kos.images[0]} width={40} height={40} alt={kos.name} className="w-full h-full object-cover" />}</div><p className="font-bold text-sm text-slate-900">{kos.name}</p></div></td>
                             <td className="p-4"><span className="text-sm text-slate-600">{kos.city}</span></td>
@@ -404,7 +407,7 @@ export default function AdminPage() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {pendingList.map((kos) => (
+                    {pendingList.slice((pendingPage - 1) * ITEMS_PER_PAGE, pendingPage * ITEMS_PER_PAGE).map((kos) => (
                       <div key={kos.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
                         <div className="flex flex-col md:flex-row gap-6">
                           <div className="w-full md:w-48 h-36 rounded-xl overflow-hidden bg-slate-200 shrink-0">
