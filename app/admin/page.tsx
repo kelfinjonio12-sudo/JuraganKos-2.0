@@ -43,6 +43,7 @@ export default function AdminPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [secretKey, setSecretKey] = useState('');
 
   const [kosList, setKosList] = useState<Kos[]>([]);
   const [pendingList, setPendingList] = useState<Kos[]>([]);
@@ -57,10 +58,18 @@ export default function AdminPage() {
   const router = useRouter();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setIsAuthenticated(true);
-      setCheckingSession(false);
-    });
+    // Cek admin session terpisah dari user session
+    const adminSession = localStorage.getItem('admin_session');
+    if (adminSession) {
+      const parsed = JSON.parse(adminSession);
+      // Session berlaku 8 jam
+      if (Date.now() - parsed.timestamp < 8 * 60 * 60 * 1000) {
+        setIsAuthenticated(true);
+      } else {
+        localStorage.removeItem('admin_session');
+      }
+    }
+    setCheckingSession(false);
   }, []);
 
   useEffect(() => {
@@ -81,14 +90,36 @@ export default function AdminPage() {
     e.preventDefault();
     setIsLoading(true);
     setError('');
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) { setError('Email atau password salah.'); } else { setIsAuthenticated(true); }
+
+    // Cek secret key dulu
+    if (secretKey !== process.env.NEXT_PUBLIC_ADMIN_SECRET) {
+      setError('Secret key salah.');
+      setIsLoading(false);
+      return;
+    }
+
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      setError('Email atau password salah.');
+    } else {
+      // Simpan admin session di localStorage terpisah
+      localStorage.setItem('admin_session', JSON.stringify({
+        user_id: data.user?.id,
+        email: data.user?.email,
+        timestamp: Date.now(),
+      }));
+      setIsAuthenticated(true);
+    }
     setIsLoading(false);
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
+  const handleLogout = () => {
+    // Hanya hapus admin session, tidak logout dari supabase auth user biasa
+    localStorage.removeItem('admin_session');
     setIsAuthenticated(false);
+    setEmail('');
+    setPassword('');
+    setSecretKey('');
   };
 
   const handleApprove = async (kos: Kos) => {
@@ -181,6 +212,17 @@ export default function AdminPage() {
                   <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">{showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}</button>
                 </div>
               </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Secret Key</label>
+                <input
+                  type="password"
+                  value={secretKey}
+                  onChange={(e) => setSecretKey(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all"
+                  placeholder="Masukkan secret key admin"
+                  required
+                />
+              </div>
               <button type="submit" disabled={isLoading} className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg mt-4">
                 {isLoading ? 'Memproses...' : 'Masuk ke Dashboard'}
               </button>
@@ -258,7 +300,15 @@ export default function AdminPage() {
                     <h1 className="text-2xl font-bold text-slate-900 mb-1">Dashboard Ikhtisar</h1>
                     <p className="text-sm text-slate-500">Selamat datang kembali!</p>
                   </div>
-                  <button onClick={() => router.push('/')} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold shadow-sm">Kembali ke Situs</button>
+                  <button 
+                    onClick={async () => {
+                      await supabase.auth.signOut();
+                      router.push('/');
+                    }} 
+                    className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold shadow-sm"
+                  >
+                    Kembali ke Situs
+                  </button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
                   {[
