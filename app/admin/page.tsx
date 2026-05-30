@@ -389,6 +389,27 @@ export default function AdminPage() {
                     </table>
                   </div>
                 </div>
+                {/* Pagination Kelola */}
+                {Math.ceil(kosList.length / ITEMS_PER_PAGE) > 1 && (
+                  <div className="flex items-center justify-between mt-4 px-2">
+                    <p className="text-sm text-slate-500">
+                      Menampilkan {((kosPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(kosPage * ITEMS_PER_PAGE, kosList.length)} dari {kosList.length} kos
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setKosPage(p => Math.max(1, p - 1))} disabled={kosPage === 1} className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      {Array.from({ length: Math.ceil(kosList.length / ITEMS_PER_PAGE) }, (_, i) => i + 1).map(page => (
+                        <button key={page} onClick={() => setKosPage(page)} className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-semibold transition-colors ${kosPage === page ? 'bg-orange-500 text-white' : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
+                          {page}
+                        </button>
+                      ))}
+                      <button onClick={() => setKosPage(p => Math.min(Math.ceil(kosList.length / ITEMS_PER_PAGE), p + 1))} disabled={kosPage === Math.ceil(kosList.length / ITEMS_PER_PAGE)} className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </>
             )}
 
@@ -447,6 +468,27 @@ export default function AdminPage() {
                   </div>
                 )}
               </>
+                {/* Pagination Pengajuan */}
+                {Math.ceil(pendingList.length / ITEMS_PER_PAGE) > 1 && (
+                  <div className="flex items-center justify-between mt-4 px-2">
+                    <p className="text-sm text-slate-500">
+                      Menampilkan {((pendingPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(pendingPage * ITEMS_PER_PAGE, pendingList.length)} dari {pendingList.length} pengajuan
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setPendingPage(p => Math.max(1, p - 1))} disabled={pendingPage === 1} className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      {Array.from({ length: Math.ceil(pendingList.length / ITEMS_PER_PAGE) }, (_, i) => i + 1).map(page => (
+                        <button key={page} onClick={() => setPendingPage(page)} className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-semibold transition-colors ${pendingPage === page ? 'bg-orange-500 text-white' : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
+                          {page}
+                        </button>
+                      ))}
+                      <button onClick={() => setPendingPage(p => Math.min(Math.ceil(pendingList.length / ITEMS_PER_PAGE), p + 1))} disabled={pendingPage === Math.ceil(pendingList.length / ITEMS_PER_PAGE)} className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
             )}
           </div>
         </div>
