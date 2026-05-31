@@ -32,38 +32,27 @@ This project is built with modern cloud computing principles in mind, ensuring h
 
 To run this Next.js project locally on your machine:
 
-1. **Clone the repository:**  
-   `git clone https://github.com/kelfinjonio12-sudo/JuraganKos-2.0.git` 
-   `cd JuraganKos-2.0`
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/kelfinjonio12-sudo/JuraganKos-2.0.git
+   cd JuraganKos-2.0
 
 2. **Install dependencies:**  
-   `npm install`
+   ```bash
+   npm install
 
 3. **Set up Environment Variables:**  
    Create a .env.local file in the root directory and add your Supabase credentials:  
-   `NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url`
-   `NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key`
+   ```bash
+   NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 
 4. **Run the development server:**  
-   `npm run dev`
-
-   Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-
-# Run and deploy your AI Studio app
-
-This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/ae81d538-7e76-4aff-b7cc-356e247b32c5
-
-## Run Locally
-
-**Prerequisites:**  Node.js
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+   ```bash
+   npm run dev
+   
+5. Open with your browser to see the result.
+   ```bash
+   http://localhost:3000
 
 *Developed as a Cloud Computing final project. Built with ❤️ in Indonesia.*
