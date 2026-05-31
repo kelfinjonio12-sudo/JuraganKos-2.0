@@ -467,7 +467,6 @@ export default function AdminPage() {
                     ))}
                   </div>
                 )}
-              </>
                 {/* Pagination Pengajuan */}
                 {Math.ceil(pendingList.length / ITEMS_PER_PAGE) > 1 && (
                   <div className="flex items-center justify-between mt-4 px-2">
@@ -489,6 +488,7 @@ export default function AdminPage() {
                     </div>
                   </div>
                 )}
+              </>
             )}
           </div>
         </div>
